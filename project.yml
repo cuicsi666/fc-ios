@@ -22,7 +22,10 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-      - path: Resources
+      - path: Resources/Assets.xcassets
+      - path: Resources/roms
+        type: folder
+      - path: Resources/emulator
         type: folder
     settings:
       base:
