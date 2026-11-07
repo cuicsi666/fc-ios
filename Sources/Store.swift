@@ -39,17 +39,21 @@ final class GameStore: ObservableObject {
         ]
     }
 
-    // 读取内置 ROM 数据
+    // 读取内置 ROM 数据（兼容 Resources 目录打包与 bundle 根两种布局）
     func builtInRom(_ name: String) -> Data? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: nil,
-                                        subdirectory: "roms") else {
-            // 兜底：直接在 bundle 根找
-            if let u2 = Bundle.main.url(forResource: name, withExtension: nil) {
-                return try? Data(contentsOf: u2)
+        let subs = ["Resources/roms", "roms", ""]
+        for sub in subs {
+            let url: URL?
+            if sub.isEmpty {
+                url = Bundle.main.url(forResource: name, withExtension: nil)
+            } else {
+                url = Bundle.main.url(forResource: name, withExtension: nil, subdirectory: sub)
             }
-            return nil
+            if let u = url, let d = try? Data(contentsOf: u) {
+                return d
+            }
         }
-        return try? Data(contentsOf: url)
+        return nil
     }
 
     // 读取任意游戏的 ROM（内置优先，其次已下载）
