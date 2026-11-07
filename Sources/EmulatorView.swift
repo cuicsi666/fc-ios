@@ -80,7 +80,8 @@ struct EmulatorWebView: UIViewRepresentable {
             injected = true
             let b64 = data.base64EncodedString()
             let name = game.name
-            let js = "window.loadRom && window.loadRom('\(b64)', '\(name)');"
+            let id = game.id
+            let js = "window.loadRom && window.loadRom('\(b64)', '\(name)', '\(id)');"
             webView?.evaluateJavaScript(js, completionHandler: nil)
         }
     }
