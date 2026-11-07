@@ -1,5 +1,7 @@
 import SwiftUI
 import WebKit
+import UIKit
+import AudioToolbox
 
 // WKWebView 封装，加载本地 emulator/index.html 并注入 ROM
 struct EmulatorWebView: UIViewRepresentable {
@@ -19,6 +21,8 @@ struct EmulatorWebView: UIViewRepresentable {
         let contentController = WKUserContentController()
         // 原生桥：页面就绪时通知，并回传游戏名
         contentController.add(context.coordinator, name: "ready")
+        // 原生桥：触觉反馈（按钮/摇杆按下时 JS 调用）
+        contentController.add(context.coordinator, name: "haptic")
         config.userContentController = contentController
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -58,9 +62,16 @@ struct EmulatorWebView: UIViewRepresentable {
         weak var webView: WKWebView?
         private var injected = false
 
+        // 强震动生成器（heavy 风格，最大强度）
+        private let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
+        private let rigidGenerator = UIImpactFeedbackGenerator(style: .rigid)
+
         init(game: Game, romData: Data?) {
             self.game = game
             self.romData = romData
+            super.init()
+            heavyGenerator.prepare()
+            rigidGenerator.prepare()
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -72,6 +83,27 @@ struct EmulatorWebView: UIViewRepresentable {
                                    didReceive message: WKScriptMessage) {
             if message.name == "ready" {
                 injectRomIfNeeded()
+            } else if message.name == "haptic" {
+                triggerHaptic(message.body)
+            }
+        }
+
+        // 超强震动：heavy + rigid 连击，最大强度
+        private func triggerHaptic(_ body: Any) {
+            let type = body as? String ?? "press"
+            // 使用系统振动（最强）+ Taptic Engine 连击
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+
+            if #available(iOS 13.0, *) {
+                heavyGenerator.impactOccurred(intensity: 1.0)
+                rigidGenerator.impactOccurred(intensity: 1.0)
+                // 二次连击增强体感
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    self.heavyGenerator.impactOccurred(intensity: 1.0)
+                    self.rigidGenerator.impactOccurred(intensity: 1.0)
+                }
+            } else {
+                heavyGenerator.impactOccurred()
             }
         }
 
@@ -101,6 +133,7 @@ struct EmulatorView: View {
                 .ignoresSafeArea()
         }
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)   // 隐藏底部 TabBar，避免与工具栏重叠
         .statusBarHidden(false)
     }
 }
