@@ -9,6 +9,7 @@
     --bg:#0d1020; --panel:#171b2e; --panel2:#1e2438;
     --txt:#eef1f8; --sub:#8a93ad; --accent:#ff5a6e; --accent2:#4a9dff;
     --key:#262c44; --keyactive:#3a4260; --line:#2a3050;
+    --gold:#ffd66b;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
   html,body{height:100%;background:var(--bg);color:var(--txt);
@@ -38,17 +39,23 @@
   .controls{display:flex;align-items:center;justify-content:space-between;gap:10px;
     padding:10px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--panel);
     border-top:1px solid var(--line)}
-  .dpad{position:relative;width:128px;height:128px;flex:none}
-  .dpad .btn{position:absolute;width:42px;height:42px;background:var(--key);border:1px solid var(--line);
-    border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--sub)}
-  .dpad .btn:active,.dpad .btn.hold{background:var(--keyactive);color:#fff}
-  .dpad .up{left:43px;top:0}.dpad .down{left:43px;bottom:0}
-  .dpad .left{left:0;top:43px}.dpad .right{right:0;top:43px}
-  .dpad .center{left:43px;top:43px;background:transparent;border:none;font-size:12px;color:var(--sub)}
+
+  /* 虚拟摇杆 */
+  .joystick{position:relative;width:128px;height:128px;flex:none}
+  .joystick .base{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#1a2038,#0f1326);
+    border:2px solid var(--line);box-shadow:inset 0 4px 14px rgba(0,0,0,.5)}
+  .joystick .base .cross{position:absolute;inset:50% auto auto 50%;width:110px;height:110px;transform:translate(-50%,-50%);opacity:.35}
+  .joystick .base .cross::before,.joystick .base .cross::after{content:"";position:absolute;background:var(--line);border-radius:2px}
+  .joystick .base .cross::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
+  .joystick .base .cross::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
+  .joystick .stick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#3d4666,#232a44);border:2px solid #2a3050;
+    box-shadow:0 4px 10px rgba(0,0,0,.5);transform:translate(-50%,-50%);transition:none;touch-action:none}
 
   .mid{display:flex;flex-direction:column;align-items:center;gap:10px}
   .pill{background:var(--panel2);border:1px solid var(--line);border-radius:99px;
     padding:7px 16px;font-size:12px;color:var(--sub);letter-spacing:1px}
+  .pill:active{background:var(--keyactive)}
   .pill.start{border-color:var(--accent2);color:var(--accent2)}
   .pill.select{border-color:var(--accent);color:var(--accent)}
 
@@ -65,6 +72,13 @@
     background:transparent;border:none;padding:4px 8px}
   .tool .ico{font-size:18px}
   .tool.on{color:var(--accent2)}
+  .tool.cheat.on{color:var(--gold)}
+
+  /* 金手指提示 */
+  .cheattip{position:absolute;top:calc(env(safe-area-inset-top) + 56px);left:50%;transform:translateX(-50%);
+    background:rgba(23,27,46,.95);border:1px solid var(--gold);color:var(--gold);
+    font-size:12px;font-weight:600;padding:7px 14px;border-radius:99px;opacity:0;transition:opacity .25s;pointer-events:none}
+  .cheattip.show{opacity:1}
 </style>
 </head>
 <body>
@@ -76,6 +90,8 @@
     </div>
   </div>
 
+  <div class="cheattip" id="cheatTip">金手指已开启 ⭐</div>
+
   <div class="screenwrap">
     <div class="screenbox">
       <canvas id="screen"></canvas>
@@ -84,17 +100,15 @@
   </div>
 
   <div class="controls">
-    <div class="dpad" id="dpad">
-      <div class="btn up" data-btn="UP">▲</div>
-      <div class="btn down" data-btn="DOWN">▼</div>
-      <div class="btn left" data-btn="LEFT">◀</div>
-      <div class="btn right" data-btn="RIGHT">▶</div>
-      <div class="btn center">方向</div>
+    <!-- 虚拟摇杆 -->
+    <div class="joystick" id="joystick">
+      <div class="base"><div class="cross"></div></div>
+      <div class="stick" id="stick"></div>
     </div>
 
     <div class="mid">
-      <div class="pill select" id="selectBtn" data-btn="SELECT">SELECT</div>
-      <div class="pill start" id="startBtn" data-btn="START">START</div>
+      <div class="pill select" id="selectBtn">SELECT</div>
+      <div class="pill start" id="startBtn">START</div>
     </div>
 
     <div class="ab">
@@ -107,18 +121,18 @@
     <button class="tool" id="resetBtn"><span class="ico">↺</span>重开</button>
     <button class="tool" id="pauseBtn"><span class="ico">⏸</span>暂停</button>
     <button class="tool" id="muteBtn"><span class="ico">🔊</span>音效</button>
-    <button class="tool" id="fullBtn"><span class="ico">⛶</span>全屏</button>
+    <button class="tool cheat" id="cheatBtn"><span class="ico">⭐</span>金手指</button>
   </div>
 
   <script src="jsnes.min.js"></script>
   <script src="nes.js"></script>
   <script>
     (function(){
-      var btns = document.querySelectorAll('[data-btn]');
+      // ===== AB 键 =====
+      var abBtns = document.querySelectorAll('[data-btn]');
       function down(b){ window.nesSetButton(b, true); }
       function up(b){ window.nesSetButton(b, false); }
-
-      btns.forEach(function(el){
+      abBtns.forEach(function(el){
         var b = el.getAttribute('data-btn');
         el.addEventListener('touchstart', function(e){ e.preventDefault(); el.classList.add('hold'); down(b); }, {passive:false});
         el.addEventListener('touchend', function(e){ e.preventDefault(); el.classList.remove('hold'); up(b); }, {passive:false});
@@ -128,6 +142,99 @@
         el.addEventListener('mouseleave', function(){ el.classList.remove('hold'); up(b); });
       });
 
+      // ===== SELECT / START =====
+      function bindTap(id, btn){
+        var el = document.getElementById(id);
+        el.addEventListener('touchstart', function(e){ e.preventDefault(); down(btn); }, {passive:false});
+        el.addEventListener('touchend', function(e){ e.preventDefault(); up(btn); }, {passive:false});
+        el.addEventListener('touchcancel', function(){ up(btn); });
+        el.addEventListener('mousedown', function(){ down(btn); });
+        el.addEventListener('mouseup', function(){ up(btn); });
+        el.addEventListener('mouseleave', function(){ up(btn); });
+      }
+      bindTap('selectBtn', 'SELECT');
+      bindTap('startBtn', 'START');
+
+      // ===== 虚拟摇杆（八方向）=====
+      var joy = document.getElementById('joystick');
+      var stick = document.getElementById('stick');
+      var joyRadius = 64;          // 摇杆底座半径
+      var deadzone = 10;           // 死区
+      var activeDirs = {};         // 当前激活的方向
+      var joyId = null;            // 触摸标识
+
+      function clearDirs(){
+        for (var d in activeDirs) {
+          if (activeDirs[d]) { window.nesSetButton(d, false); activeDirs[d] = false; }
+        }
+      }
+
+      function applyDirs(dx, dy){
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        var dirs = {};
+        if (dist > deadzone) {
+          // 角度判定（含斜向 45°）
+          var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+          if (ang >= -22.5 && ang < 22.5) dirs.RIGHT = true;
+          else if (ang >= 22.5 && ang < 67.5) { dirs.RIGHT = true; dirs.DOWN = true; }
+          else if (ang >= 67.5 && ang < 112.5) dirs.DOWN = true;
+          else if (ang >= 112.5 && ang < 157.5) { dirs.LEFT = true; dirs.DOWN = true; }
+          else if (ang >= 157.5 || ang < -157.5) dirs.LEFT = true;
+          else if (ang >= -157.5 && ang < -112.5) { dirs.LEFT = true; dirs.UP = true; }
+          else if (ang >= -112.5 && ang < -67.5) dirs.UP = true;
+          else if (ang >= -67.5 && ang < -22.5) { dirs.RIGHT = true; dirs.UP = true; }
+        }
+        // 释放不再激活的方向
+        for (var d in activeDirs) {
+          if (activeDirs[d] && !dirs[d]) { window.nesSetButton(d, false); activeDirs[d] = false; }
+        }
+        // 按下新激活的方向
+        for (var d in dirs) {
+          if (dirs[d] && !activeDirs[d]) { window.nesSetButton(d, true); activeDirs[d] = true; }
+        }
+      }
+
+      function moveStick(touchX, touchY){
+        var rect = joy.getBoundingClientRect();
+        var cx = rect.left + rect.width/2;
+        var cy = rect.top + rect.height/2;
+        var dx = touchX - cx, dy = touchY - cy;
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        var max = joyRadius - 12;
+        var cl = Math.min(dist, max);
+        var sx = cl / dist, sy = cl / dist;
+        if (dist === 0) { sx = 0; sy = 0; }
+        var nx = dx * sx, ny = dy * sy;
+        stick.style.transform = 'translate(calc(-50% + ' + nx + 'px), calc(-50% + ' + ny + 'px))';
+        applyDirs(dx, dy);
+      }
+
+      function resetStick(){
+        stick.style.transform = 'translate(-50%,-50%)';
+        clearDirs();
+      }
+
+      joy.addEventListener('touchstart', function(e){
+        e.preventDefault();
+        var t = e.changedTouches[0];
+        joyId = t.identifier;
+        moveStick(t.clientX, t.clientY);
+      }, {passive:false});
+      joy.addEventListener('touchmove', function(e){
+        e.preventDefault();
+        for (var i=0;i<e.changedTouches.length;i++){
+          var t = e.changedTouches[i];
+          if (t.identifier === joyId) moveStick(t.clientX, t.clientY);
+        }
+      }, {passive:false});
+      joy.addEventListener('touchend', function(e){
+        for (var i=0;i<e.changedTouches.length;i++){
+          if (e.changedTouches[i].identifier === joyId){ joyId=null; resetStick(); }
+        }
+      });
+      joy.addEventListener('touchcancel', function(){ joyId=null; resetStick(); });
+
+      // ===== 工具栏 =====
       document.getElementById('pauseBtn').addEventListener('click', function(){
         var p = window.nesPause();
         document.getElementById('pauseOverlay').classList.toggle('show', p);
@@ -144,15 +251,26 @@
         this.querySelector('.ico').textContent = muted ? '🔇' : '🔊';
         this.classList.toggle('on', muted);
       });
-      document.getElementById('fullBtn').addEventListener('click', function(){
-        var el = document.documentElement;
-        if (document.fullscreenElement) document.exitFullscreen();
-        else if (el.requestFullscreen) el.requestFullscreen();
+
+      // ===== 金手指开关 =====
+      var cheatBtn = document.getElementById('cheatBtn');
+      var cheatTip = document.getElementById('cheatTip');
+      function showTip(msg){
+        cheatTip.textContent = msg;
+        cheatTip.classList.add('show');
+        setTimeout(function(){ cheatTip.classList.remove('show'); }, 1200);
+      }
+      cheatBtn.addEventListener('click', function(){
+        var st = window.nesCheatState();
+        var next = !st.enabled;
+        var r = window.nesSetCheat(next);
+        this.classList.toggle('on', r.enabled);
+        this.querySelector('.ico').textContent = r.enabled ? '🌟' : '⭐';
+        showTip(r.enabled ? ('金手指已开启 · ' + r.count + ' 项') : '金手指已关闭');
       });
 
       // 通知原生层页面就绪
       try { window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ready && window.webkit.messageHandlers.ready.postMessage('ready'); } catch(e){}
-      // 兜底：直接暴露一个全局就绪标记
       window.__nesReady = true;
     })();
   </script>
