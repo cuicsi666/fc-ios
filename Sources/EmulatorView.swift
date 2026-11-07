@@ -28,9 +28,18 @@ struct EmulatorWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
 
-        // 加载本地 index.html（emulator 目录，可访问相对 js/css）
-        if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html",
-                                         subdirectory: "emulator") {
+        // 加载本地 index.html（兼容 Resources 目录打包与 bundle 根两种布局）
+        let subs = ["Resources/emulator", "emulator"]
+        var loaded = false
+        for sub in subs {
+            if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html",
+                                             subdirectory: sub) {
+                webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+                loaded = true
+                break
+            }
+        }
+        if !loaded, let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html") {
             webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
         }
         return webView
