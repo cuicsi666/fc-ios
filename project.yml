@@ -32,7 +32,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.cuicsi.fcemulator
         PRODUCT_NAME: FCEmulator
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "2.0"
+        MARKETING_VERSION: "3.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_PREVIEWS: "NO"
@@ -40,7 +40,7 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: 红白机
-        CFBundleShortVersionString: "2.0"
+        CFBundleShortVersionString: "3.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
