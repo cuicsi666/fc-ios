@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>红白机</title>
+<style>
+  :root{
+    --bg:#0d1020; --panel:#171b2e; --panel2:#1e2438;
+    --txt:#eef1f8; --sub:#8a93ad; --accent:#ff5a6e; --accent2:#4a9dff;
+    --key:#262c44; --keyactive:#3a4260; --line:#2a3050;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+  html,body{height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}
+  body{display:flex;flex-direction:column;height:100%;touch-action:manipulation}
+
+  /* 顶栏 */
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+    padding-top:calc(10px + env(safe-area-inset-top));background:linear-gradient(180deg,#141a30,#0d1020)}
+  .topbar .title{font-size:17px;font-weight:700;letter-spacing:.5px}
+  .topbar .sub{font-size:11px;color:var(--sub);margin-top:1px}
+  .topbar .badge{display:inline-block;font-size:10px;color:#ffd66b;background:rgba(255,214,107,.12);
+    border:1px solid rgba(255,214,107,.3);border-radius:99px;padding:2px 8px;margin-top:2px}
+
+  /* 游戏画面区 */
+  .screenwrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;
+    padding:6px 10px;overflow:hidden;min-height:0}
+  .screenbox{position:relative;width:100%;max-width:420px;aspect-ratio:4/3;
+    background:#000;border-radius:10px;overflow:hidden;border:2px solid var(--line);
+    box-shadow:0 0 0 1px #000, 0 8px 30px rgba(0,0,0,.55)}
+  #screen{width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;display:block;background:#000}
+  .pauseoverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.6);backdrop-filter:blur(3px);font-size:15px;font-weight:600;letter-spacing:2px}
+  .pauseoverlay.show{display:flex}
+
+  /* 控制区 */
+  .controls{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--panel);
+    border-top:1px solid var(--line)}
+  .dpad{position:relative;width:128px;height:128px;flex:none}
+  .dpad .btn{position:absolute;width:42px;height:42px;background:var(--key);border:1px solid var(--line);
+    border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--sub)}
+  .dpad .btn:active,.dpad .btn.hold{background:var(--keyactive);color:#fff}
+  .dpad .up{left:43px;top:0}.dpad .down{left:43px;bottom:0}
+  .dpad .left{left:0;top:43px}.dpad .right{right:0;top:43px}
+  .dpad .center{left:43px;top:43px;background:transparent;border:none;font-size:12px;color:var(--sub)}
+
+  .mid{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:99px;
+    padding:7px 16px;font-size:12px;color:var(--sub);letter-spacing:1px}
+  .pill.start{border-color:var(--accent2);color:var(--accent2)}
+  .pill.select{border-color:var(--accent);color:var(--accent)}
+
+  .ab{display:flex;align-items:center;gap:14px;flex:none}
+  .ab .btn{width:58px;height:58px;border-radius:50%;background:var(--key);border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#e8ecff;
+    box-shadow:0 3px 0 #0006}
+  .ab .btn:active,.ab .btn.hold{background:var(--keyactive);transform:translateY(1px);box-shadow:0 1px 0 #0006}
+
+  /* 底部设置条 */
+  .toolbar{display:flex;align-items:center;justify-content:space-around;gap:6px;
+    padding:8px 8px;background:#11152a;border-top:1px solid var(--line)}
+  .tool{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--sub);
+    background:transparent;border:none;padding:4px 8px}
+  .tool .ico{font-size:18px}
+  .tool.on{color:var(--accent2)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div style="flex:1;min-width:0">
+      <div class="title" id="gameTitle">红白机</div>
+      <div class="sub" id="gameSub">FC · NES 模拟器</div>
+      <span class="badge" id="stateBadge">运行中</span>
+    </div>
+  </div>
+
+  <div class="screenwrap">
+    <div class="screenbox">
+      <canvas id="screen"></canvas>
+      <div class="pauseoverlay" id="pauseOverlay">已暂停</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="dpad" id="dpad">
+      <div class="btn up" data-btn="UP">▲</div>
+      <div class="btn down" data-btn="DOWN">▼</div>
+      <div class="btn left" data-btn="LEFT">◀</div>
+      <div class="btn right" data-btn="RIGHT">▶</div>
+      <div class="btn center">方向</div>
+    </div>
+
+    <div class="mid">
+      <div class="pill select" id="selectBtn" data-btn="SELECT">SELECT</div>
+      <div class="pill start" id="startBtn" data-btn="START">START</div>
+    </div>
+
+    <div class="ab">
+      <div class="btn" data-btn="B">B</div>
+      <div class="btn" data-btn="A">A</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool" id="resetBtn"><span class="ico">↺</span>重开</button>
+    <button class="tool" id="pauseBtn"><span class="ico">⏸</span>暂停</button>
+    <button class="tool" id="muteBtn"><span class="ico">🔊</span>音效</button>
+    <button class="tool" id="fullBtn"><span class="ico">⛶</span>全屏</button>
+  </div>
+
+  <script src="jsnes.min.js"></script>
+  <script src="nes.js"></script>
+  <script>
+    (function(){
+      var btns = document.querySelectorAll('[data-btn]');
+      function down(b){ window.nesSetButton(b, true); }
+      function up(b){ window.nesSetButton(b, false); }
+
+      btns.forEach(function(el){
+        var b = el.getAttribute('data-btn');
+        el.addEventListener('touchstart', function(e){ e.preventDefault(); el.classList.add('hold'); down(b); }, {passive:false});
+        el.addEventListener('touchend', function(e){ e.preventDefault(); el.classList.remove('hold'); up(b); }, {passive:false});
+        el.addEventListener('touchcancel', function(e){ el.classList.remove('hold'); up(b); });
+        el.addEventListener('mousedown', function(){ el.classList.add('hold'); down(b); });
+        el.addEventListener('mouseup', function(){ el.classList.remove('hold'); up(b); });
+        el.addEventListener('mouseleave', function(){ el.classList.remove('hold'); up(b); });
+      });
+
+      document.getElementById('pauseBtn').addEventListener('click', function(){
+        var p = window.nesPause();
+        document.getElementById('pauseOverlay').classList.toggle('show', p);
+        document.getElementById('stateBadge').textContent = p ? '已暂停' : '运行中';
+      });
+      document.getElementById('resetBtn').addEventListener('click', function(){
+        window.nesReset();
+        document.getElementById('pauseOverlay').classList.remove('show');
+        document.getElementById('stateBadge').textContent = '运行中';
+      });
+      var muted = false;
+      document.getElementById('muteBtn').addEventListener('click', function(){
+        muted = window.nesMute(!muted);
+        this.querySelector('.ico').textContent = muted ? '🔇' : '🔊';
+        this.classList.toggle('on', muted);
+      });
+      document.getElementById('fullBtn').addEventListener('click', function(){
+        var el = document.documentElement;
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (el.requestFullscreen) el.requestFullscreen();
+      });
+
+      // 通知原生层页面就绪
+      try { window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ready && window.webkit.messageHandlers.ready.postMessage('ready'); } catch(e){}
+      // 兜底：直接暴露一个全局就绪标记
+      window.__nesReady = true;
+    })();
+  </script>
+</body>
+</html>

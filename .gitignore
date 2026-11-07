@@ -1,0 +1,7 @@
+.gitignore
+build/
+DerivedData/
+*.xcuserstate
+.DS_Store
+Payload/
+*.ipa
